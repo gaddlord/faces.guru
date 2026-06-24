@@ -16,9 +16,15 @@ pub async fn run(st: &AppState, job: &Job, params: &Value) -> Result<Vec<String>
     let negative = params["negative"].as_str().unwrap_or("").to_string();
     let width = params["width"].as_u64().unwrap_or(1024) as u32;
     let height = params["height"].as_u64().unwrap_or(1024) as u32;
-    let steps = params["steps"].as_u64().unwrap_or(28) as u32;
-    let cfg_scale = params["cfg"].as_f64().unwrap_or(6.5) as f32;
+    let steps = params["steps"].as_u64().unwrap_or(30) as u32;
+    let cfg_scale = params["cfg"].as_f64().unwrap_or(6.0) as f32;
     let seed = params["seed"].as_i64().unwrap_or_else(|| seed_from(&job.id));
+    // Photoreal-friendly defaults (Pony/Illustrious realism look better on dpmpp_2m + karras
+    // than the SDXL default euler/normal). Overridable per job.
+    let sampler = params["sampler"].as_str().unwrap_or("dpmpp_2m").to_string();
+    let scheduler = params["scheduler"].as_str().unwrap_or("karras").to_string();
+    // Optional VAE override (set if a checkpoint produces washed-out colors).
+    let vae = params["vae"].as_str().filter(|s| !s.trim().is_empty());
 
     set_progress(st, &job.id, 0.1).await?;
 
@@ -36,7 +42,7 @@ pub async fn run(st: &AppState, job: &Job, params: &Value) -> Result<Vec<String>
 
     set_progress(st, &job.id, 0.3).await?;
     let png = crate::clients::comfyui::text2img(
-        st, &positive, &negative, width, height, steps, cfg_scale, seed,
+        st, &positive, &negative, width, height, steps, cfg_scale, seed, &sampler, &scheduler, vae,
     )
     .await?;
     let id = save_media(st, "image", "png", &png).await?;

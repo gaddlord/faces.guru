@@ -64,7 +64,7 @@ Config (env or `.env`, see `.env.example`): `FG_BIND`, `FG_DB`, `FG_MEDIA_DIR`,
 | `GET /api/media/:id` | serve a stored media file |
 
 Job `params` by type:
-- **image**: `positive`, `negative`, `width`, `height`, `steps`, `cfg`, `seed`
+- **image**: `positive`, `negative`, `width`, `height`, `steps`, `cfg`, `seed`, `sampler` (default `dpmpp_2m`), `scheduler` (default `karras`), `vae` (optional VAE filename override)
 - **swap**: `restore` (bool); `input_media_ids = [source_face, target_image]`
 - **video**: `prompt`, `fps` (8–30), `duration` (1–6s); `input_media_ids = [still]`
 

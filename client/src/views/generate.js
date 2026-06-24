@@ -33,9 +33,40 @@ export function mountGenerate(view) {
         </div>
         <div>
           <label for="g-steps">Steps</label>
-          <input id="g-steps" type="number" value="28" min="1" max="60" />
+          <input id="g-steps" type="number" value="30" min="1" max="60" />
         </div>
       </div>
+
+      <details class="advanced">
+        <summary>Advanced — sampler &amp; VAE</summary>
+        <div class="row">
+          <div>
+            <label for="g-cfg">CFG</label>
+            <input id="g-cfg" type="number" value="6" min="1" max="20" step="0.5" />
+          </div>
+          <div>
+            <label for="g-sampler">Sampler</label>
+            <select id="g-sampler">
+              <option value="dpmpp_2m" selected>dpmpp_2m</option>
+              <option value="euler_ancestral">euler_ancestral</option>
+              <option value="dpmpp_2m_sde">dpmpp_2m_sde</option>
+              <option value="dpmpp_sde">dpmpp_sde</option>
+              <option value="euler">euler</option>
+            </select>
+          </div>
+          <div>
+            <label for="g-scheduler">Scheduler</label>
+            <select id="g-scheduler">
+              <option value="karras" selected>karras</option>
+              <option value="normal">normal</option>
+              <option value="exponential">exponential</option>
+              <option value="sgm_uniform">sgm_uniform</option>
+            </select>
+          </div>
+        </div>
+        <label for="g-vae">VAE override (optional)</label>
+        <input id="g-vae" type="text" placeholder="e.g. sdxl_vae.safetensors — blank uses the checkpoint's VAE" />
+      </details>
 
       <button class="btn" id="g-run">Generate</button>
       <p class="muted" id="g-note"></p>
@@ -89,8 +120,13 @@ export function mountGenerate(view) {
       negative: $('#g-negative').value.trim(),
       width,
       height,
-      steps: Number($('#g-steps').value) || 28,
+      steps: Number($('#g-steps').value) || 30,
+      cfg: Number($('#g-cfg').value) || 6,
+      sampler: $('#g-sampler').value,
+      scheduler: $('#g-scheduler').value,
     };
+    const vae = $('#g-vae').value.trim();
+    if (vae) params.vae = vae;
 
     note.textContent = 'Submitting…';
     $('#g-run').disabled = true;

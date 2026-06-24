@@ -132,6 +132,15 @@ button.btn.secondary {
 }
 button.btn:disabled { opacity: 0.5; cursor: default; }
 
+details.advanced { margin-top: 12px; }
+details.advanced summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 0;
+  user-select: none;
+}
+
 .muted { color: var(--muted); font-size: 13px; }
 .error {
   background: rgba(255, 93, 93, 0.12);

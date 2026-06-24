@@ -36,14 +36,29 @@ pub async fn enhance(
         })),
         Err(e) => {
             tracing::warn!("prompt enhance fell back to passthrough: {:#}", e);
-            let positive = if req.context.trim().is_empty() {
-                req.idea.clone()
+            let body = if req.context.trim().is_empty() {
+                req.idea.trim().to_string()
             } else {
                 format!("{}, {}", req.idea.trim(), req.context.trim())
             };
+            // In tags mode (Pony/Illustrious realism), still scaffold a usable
+            // photoreal-explicit prompt even though the LLM is offline.
+            let (positive, negative) = match st.cfg.prompt_mode {
+                crate::config::PromptMode::Tags => {
+                    use crate::clients::lmstudio::{REALISM_NEG, REALISM_POS_PREFIX};
+                    let positive = format!("{REALISM_POS_PREFIX}, {body}");
+                    let negative = if req.negative.trim().is_empty() {
+                        REALISM_NEG.to_string()
+                    } else {
+                        format!("{}, {}", req.negative.trim(), REALISM_NEG)
+                    };
+                    (positive, negative)
+                }
+                crate::config::PromptMode::Prose => (body, req.negative.clone()),
+            };
             Ok(Json(EnhanceResp {
                 positive,
-                negative: req.negative.clone(),
+                negative,
                 enhanced: false,
             }))
         }
