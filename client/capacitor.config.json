@@ -1,0 +1,9 @@
+{
+  "appId": "guru.faces.app",
+  "appName": "faces.guru",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true
+  }
+}
