@@ -9,7 +9,7 @@ mod worker;
 use std::sync::Arc;
 
 use axum::{
-    routing::{get, post},
+    routing::{get, post, put},
     Router,
 };
 use sqlx::sqlite::SqlitePool;
@@ -62,7 +62,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/api/jobs", post(api::jobs::create).get(api::jobs::list))
         .route("/api/jobs/:id", get(api::jobs::get_one))
         .route("/api/media", post(api::media::upload))
-        .route("/api/media/:id", get(api::media::serve))
+        .route("/api/media/:id", get(api::media::serve).delete(api::media::delete))
+        .route("/api/presets", post(api::presets::create).get(api::presets::list))
+        .route(
+            "/api/presets/:id",
+            put(api::presets::update).delete(api::presets::delete),
+        )
         .with_state(state)
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http());

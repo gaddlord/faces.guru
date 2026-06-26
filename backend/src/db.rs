@@ -57,5 +57,23 @@ async fn migrate(pool: &SqlitePool) -> Result<()> {
     .execute(pool)
     .await?;
 
+    // Reusable, named bundles of Generate (or other) settings so the user doesn't
+    // re-type prompts. `data_json` is an opaque blob owned by the client.
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS presets (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            kind       TEXT NOT NULL DEFAULT 'image',
+            data_json  TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE (kind, name)
+        )
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }

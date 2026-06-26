@@ -1,10 +1,26 @@
 import { api, pollJob } from '../api.js';
-import { renderJobState } from '../ui.js';
+import { renderJobState, esc } from '../ui.js';
+
+const LAST_KEY = 'fg_generate_last';
+const PRESET_KEY = 'fg_generate_preset';
 
 // Feature 1 + 2: prompt → NSFW image, with AI prompt-assist and additional-context /
-// negative conditioning (§3.1, §3.2).
+// negative conditioning (§3.1, §3.2). Settings are sticky (auto-restored) and can be
+// saved as reusable named presets so you never have to re-type a prompt.
 export function mountGenerate(view) {
   view.innerHTML = `
+    <div class="card">
+      <h2>Presets</h2>
+      <label for="g-preset">Saved settings</label>
+      <select id="g-preset"><option value="">— none —</option></select>
+      <div class="row">
+        <button class="btn secondary" id="g-preset-save">Save</button>
+        <button class="btn secondary" id="g-preset-saveas">Save As…</button>
+        <button class="btn secondary" id="g-preset-del">Delete</button>
+      </div>
+      <p class="muted" id="g-preset-note"></p>
+    </div>
+
     <div class="card">
       <h2>Generate image</h2>
       <label for="g-idea">Your idea</label>
@@ -79,8 +95,126 @@ export function mountGenerate(view) {
 
   const $ = (id) => view.querySelector(id);
   const note = $('#g-note');
+  const presetNote = (m) => ($('#g-preset-note').textContent = m);
   let cancel = null;
+  let presets = [];
+  let currentPresetId = localStorage.getItem(PRESET_KEY) || '';
 
+  // ---- settings <-> form ----
+  const FIELDS = [
+    'idea', 'context', 'negative', 'positive',
+    'size', 'steps', 'cfg', 'sampler', 'scheduler', 'vae',
+  ];
+  const collect = () => Object.fromEntries(FIELDS.map((f) => [f, $('#g-' + f).value]));
+  const apply = (s) => {
+    if (!s || typeof s !== 'object') return;
+    FIELDS.forEach((f) => {
+      if (s[f] !== undefined && s[f] !== null) $('#g-' + f).value = s[f];
+    });
+  };
+  const persistLast = () => localStorage.setItem(LAST_KEY, JSON.stringify(collect()));
+
+  // Restore the last-used settings so you never start from a blank prompt.
+  try {
+    const last = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+    if (last) apply(last);
+  } catch {
+    /* ignore corrupt cache */
+  }
+
+  // Keep the sticky cache fresh as the user edits.
+  FIELDS.forEach((f) => {
+    const el = $('#g-' + f);
+    el.addEventListener('input', persistLast);
+    el.addEventListener('change', persistLast);
+  });
+
+  // ---- presets ----
+  async function refreshPresets(selectId) {
+    try {
+      presets = await api.listPresets('image');
+    } catch {
+      presets = [];
+    }
+    const sel = $('#g-preset');
+    sel.innerHTML =
+      '<option value="">— none —</option>' +
+      presets.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+    const want = selectId !== undefined ? selectId : currentPresetId;
+    if (want && presets.some((p) => p.id === want)) {
+      sel.value = want;
+      currentPresetId = want;
+    } else {
+      currentPresetId = '';
+    }
+  }
+
+  $('#g-preset').addEventListener('change', () => {
+    const id = $('#g-preset').value;
+    currentPresetId = id;
+    localStorage.setItem(PRESET_KEY, id);
+    const p = presets.find((x) => x.id === id);
+    if (p) {
+      apply(p.data);
+      persistLast();
+      presetNote(`Loaded “${p.name}”.`);
+    } else {
+      presetNote('');
+    }
+  });
+
+  async function saveAs() {
+    const name = (window.prompt('Name for these settings:') || '').trim();
+    if (!name) return;
+    try {
+      const p = await api.createPreset(name, collect());
+      currentPresetId = p.id;
+      localStorage.setItem(PRESET_KEY, p.id);
+      await refreshPresets(p.id);
+      presetNote(`Saved as “${p.name}”.`);
+    } catch (e) {
+      presetNote(
+        /409/.test(e.message)
+          ? 'A preset with that name already exists — pick another name or use Save.'
+          : 'Save As failed: ' + e.message
+      );
+    }
+  }
+
+  $('#g-preset-saveas').addEventListener('click', saveAs);
+
+  $('#g-preset-save').addEventListener('click', async () => {
+    if (!currentPresetId) return saveAs(); // nothing selected → behaves like Save As
+    try {
+      const p = await api.updatePreset(currentPresetId, { data: collect() });
+      await refreshPresets(p.id);
+      presetNote(`Saved “${p.name}”.`);
+    } catch (e) {
+      presetNote('Save failed: ' + e.message);
+    }
+  });
+
+  $('#g-preset-del').addEventListener('click', async () => {
+    if (!currentPresetId) {
+      presetNote('No preset selected.');
+      return;
+    }
+    const p = presets.find((x) => x.id === currentPresetId);
+    if (!window.confirm(`Delete preset “${p ? p.name : ''}”?`)) return;
+    try {
+      await api.deletePreset(currentPresetId);
+      currentPresetId = '';
+      localStorage.removeItem(PRESET_KEY);
+      await refreshPresets('');
+      presetNote('Deleted.');
+    } catch (e) {
+      presetNote('Delete failed: ' + e.message);
+    }
+  });
+
+  refreshPresets();
+
+  // ---- enhance & generate ----
   $('#g-enhance').addEventListener('click', async () => {
     const idea = $('#g-idea').value.trim();
     if (!idea) {
@@ -92,6 +226,7 @@ export function mountGenerate(view) {
       const r = await api.enhance(idea, $('#g-context').value, $('#g-negative').value);
       $('#g-positive').value = r.positive;
       if (r.negative) $('#g-negative').value = r.negative;
+      persistLast();
       note.textContent = r.enhanced
         ? 'Enhanced by local LLM — edit freely.'
         : 'LLM offline — used your text as-is (you can still generate).';
@@ -128,6 +263,7 @@ export function mountGenerate(view) {
     const vae = $('#g-vae').value.trim();
     if (vae) params.vae = vae;
 
+    persistLast();
     note.textContent = 'Submitting…';
     $('#g-run').disabled = true;
     try {

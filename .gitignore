@@ -1,0 +1,2 @@
+# Windows reserved-name artifact accidentally created by shell redirection to "nul"
+nul

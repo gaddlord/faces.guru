@@ -8,7 +8,7 @@ use axum::{
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::error::AppResult;
+use crate::error::{AppError, AppResult};
 use crate::AppState;
 
 /// `POST /api/media` — multipart upload of a source/target image. Returns `{ id }`.
@@ -93,4 +93,61 @@ fn mime_from_path(path: &str) -> &'static str {
     } else {
         "application/octet-stream"
     }
+}
+
+/// `DELETE /api/media/:id` — delete a media file from disk and DB.
+/// Also strips references to this media from any jobs.
+pub async fn delete(
+    State(st): State<AppState>,
+    Path(id): Path<String>,
+) -> AppResult<Json<serde_json::Value>> {
+    let row = sqlx::query_as::<_, (String,)>("SELECT path FROM media WHERE id = ?")
+        .bind(&id)
+        .fetch_optional(&st.pool)
+        .await?;
+
+    let Some((path,)) = row else {
+        return Err(AppError(anyhow!("media not found")));
+    };
+
+    // Remove the file from disk (ignore missing-file errors).
+    let _ = tokio::fs::remove_file(&path).await;
+
+    // Strip this media id from job references.
+    // SQLite doesn't have a built-in JSON array remove, so we fetch,
+    // filter in Rust, and update each affected job.
+    let jobs: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT id, input_media_ids, output_media_ids FROM jobs
+         WHERE input_media_ids LIKE ? OR output_media_ids LIKE ?",
+    )
+    .bind(format!("%{id}%"))
+    .bind(format!("%{id}%"))
+    .fetch_all(&st.pool)
+    .await?;
+
+    for (job_id, inputs_json, outputs_json) in &jobs {
+        let mut inputs: Vec<String> =
+            serde_json::from_str(inputs_json).unwrap_or_default();
+        let mut outputs: Vec<String> =
+            serde_json::from_str(outputs_json).unwrap_or_default();
+        inputs.retain(|mid| mid != &id);
+        outputs.retain(|mid| mid != &id);
+        sqlx::query(
+            "UPDATE jobs SET input_media_ids = ?, output_media_ids = ?,
+             updated_at = datetime('now') WHERE id = ?",
+        )
+        .bind(serde_json::to_string(&inputs).unwrap_or_default())
+        .bind(serde_json::to_string(&outputs).unwrap_or_default())
+        .bind(job_id)
+        .execute(&st.pool)
+        .await?;
+    }
+
+    // Delete the media row itself.
+    sqlx::query("DELETE FROM media WHERE id = ?")
+        .bind(&id)
+        .execute(&st.pool)
+        .await?;
+
+    Ok(Json(json!({"deleted": id})))
 }

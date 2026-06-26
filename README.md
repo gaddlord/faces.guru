@@ -121,3 +121,25 @@ reach the Mac's `http://` backend over the (already-encrypted) Tailscale mesh.
 This tool intentionally has **no** content-moderation pipeline (per the product direction in
 ROADMAP §0.2). That does not remove the law: CSAM and non-consensual intimate deepfakes of
 real people are criminal regardless. Keep generations synthetic/consented — see ROADMAP §0.3.
+
+
+http://localhost:5173/#generate
+
+1. run lm studio
+2. Start the development server
+
+2. run comfyui
+D:\ComfyUI_windows_portable\run_nvidia_gpu.bat
+
+2. Run backend
+cd backend
+cargo run
+
+3. run swap server
+pip install flask pillow numpy insightface onnxruntime opencv-python
+cd backend/services
+python faceswap_service.py
+
+3. Run frontend
+cd client
+npm run dev

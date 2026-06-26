@@ -20,10 +20,21 @@ Run:
 """
 
 import io
+import os
+import sys
 
-from flask import Flask, request, send_file, abort
+from flask import Flask, abort, request, send_file
 
 app = Flask(__name__)
+
+# Model directory: honour INSIGHTFACE_HOME env var, default to D:\insightface on
+# Windows, ~/.insightface elsewhere.
+MODEL_DIR = os.environ.get(
+    "INSIGHTFACE_HOME",
+    r"D:\insightface"
+    if sys.platform == "win32"
+    else os.path.expanduser("~/.insightface"),
+)
 
 # Lazily-initialised models (None until first use / if libs are missing).
 _swapper = None
@@ -39,10 +50,10 @@ def _load_models():
         import insightface
         from insightface.app import FaceAnalysis
 
-        _analyzer = FaceAnalysis(name="buffalo_l")
+        _analyzer = FaceAnalysis(name="buffalo_l", root=MODEL_DIR)
         _analyzer.prepare(ctx_id=0, det_size=(640, 640))
-        # inswapper_128.onnx must be downloaded into the insightface model dir.
-        _swapper = insightface.model_zoo.get_model("inswapper_128.onnx")
+        # inswapper_128.onnx must be placed in MODEL_DIR.
+        _swapper = insightface.model_zoo.get_model("inswapper_128.onnx", root=MODEL_DIR)
         return _analyzer, _swapper
     except Exception as e:  # noqa: BLE001
         app.logger.warning("face-swap models unavailable, will echo target: %s", e)
