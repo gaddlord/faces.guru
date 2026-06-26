@@ -57,7 +57,24 @@ pub async fn enhance_prompt(
             { "role": "user", "content": user },
         ],
         "temperature": 0.7,
-        "response_format": { "type": "json_object" },
+        // LM Studio structured output: it requires json_schema (not json_object),
+        // which also guarantees the {positive, negative} shape.
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "diffusion_prompt",
+                "strict": true,
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "positive": { "type": "string" },
+                        "negative": { "type": "string" }
+                    },
+                    "required": ["positive", "negative"],
+                    "additionalProperties": false
+                }
+            }
+        },
     });
 
     let url = format!(
