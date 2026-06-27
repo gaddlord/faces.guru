@@ -34,6 +34,9 @@ pub async fn run(st: &AppState, job: &Job, params: &Value, inputs: &[String]) ->
     }
 
     set_progress(st, &job.id, 0.4).await?;
+    // Normalize both images to PNG so the face-swap service handles any upload format.
+    let source = crate::imageutil::to_png_or_original(source);
+    let target = crate::imageutil::to_png_or_original(target);
     let result = crate::clients::faceswap::swap(st, source, target, restore).await?;
     let id = save_media(st, "swap", "png", &result).await?;
     Ok(vec![id])

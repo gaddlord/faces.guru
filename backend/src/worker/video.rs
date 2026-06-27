@@ -34,6 +34,8 @@ pub async fn run(st: &AppState, job: &Job, params: &Value, inputs: &[String]) ->
     }
 
     set_progress(st, &job.id, 0.3).await?;
+    // Normalize to PNG so the video service isn't tripped up by WebP/other formats.
+    let image_bytes = crate::imageutil::to_png_or_original(image_bytes);
     let mp4 = crate::clients::videosvc::img2vid(st, image_bytes, &prompt, fps, duration).await?;
     let id = save_media(st, "video", "mp4", &mp4).await?;
     Ok(vec![id])

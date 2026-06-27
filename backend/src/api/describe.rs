@@ -61,7 +61,7 @@ pub async fn describe(
     let bytes = tokio::fs::read(&path).await?;
     // Vision models (e.g. Gemma) reject formats like WebP. Normalise to PNG so any
     // uploaded image works; fall back to the raw bytes if it can't be decoded.
-    let (img_bytes, mime): (Vec<u8>, &str) = match normalize_to_png(&bytes) {
+    let (img_bytes, mime): (Vec<u8>, &str) = match crate::imageutil::to_png(&bytes) {
         Some(png) => (png, "image/png"),
         None => (bytes, mime_from_path(&path)),
     };
@@ -71,14 +71,6 @@ pub async fn describe(
         prompt,
         described: true,
     }))
-}
-
-/// Decode any supported image (png/jpeg/webp/gif) and re-encode as PNG.
-fn normalize_to_png(bytes: &[u8]) -> Option<Vec<u8>> {
-    let img = image::load_from_memory(bytes).ok()?;
-    let mut buf = std::io::Cursor::new(Vec::new());
-    img.write_to(&mut buf, image::ImageFormat::Png).ok()?;
-    Some(buf.into_inner())
 }
 
 fn mock_prompt(aspects: &[String]) -> String {

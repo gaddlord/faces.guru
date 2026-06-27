@@ -3,6 +3,7 @@ mod clients;
 mod config;
 mod db;
 mod error;
+mod imageutil;
 mod models;
 mod worker;
 
