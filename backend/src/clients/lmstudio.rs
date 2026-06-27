@@ -180,7 +180,9 @@ Output ONLY the prompt text, with no preamble, headings, or quotes.",
             ]}
         ],
         "temperature": 0.4,
-        "max_tokens": 900
+        // Generous budget: reasoning vision models (e.g. Gemma) spend tokens "thinking"
+        // before emitting the answer, so a low cap can truncate the prompt entirely.
+        "max_tokens": 2048
     });
 
     let url = format!(
