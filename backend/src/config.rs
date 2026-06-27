@@ -22,6 +22,9 @@ pub struct Config {
     pub image_ckpt: String,
     pub lmstudio_url: String,
     pub lmstudio_model: String,
+    /// Vision-capable model id for image description (must support image input).
+    /// Defaults to `lmstudio_model`; override with FG_VISION_MODEL.
+    pub vision_model: String,
     pub faceswap_url: String,
     pub video_url: String,
 }
@@ -44,6 +47,10 @@ impl Config {
             image_ckpt: get("FG_IMAGE_CKPT", "sd_xl_base_1.0.safetensors"),
             lmstudio_url: get("FG_LMSTUDIO_URL", "http://127.0.0.1:1234"),
             lmstudio_model: get("FG_LMSTUDIO_MODEL", "mistral-small-24b-instruct"),
+            vision_model: get(
+                "FG_VISION_MODEL",
+                &get("FG_LMSTUDIO_MODEL", "mistral-small-24b-instruct"),
+            ),
             faceswap_url: get("FG_FACESWAP_URL", "http://127.0.0.1:5000"),
             video_url: get("FG_VIDEO_URL", "http://127.0.0.1:5001"),
         }

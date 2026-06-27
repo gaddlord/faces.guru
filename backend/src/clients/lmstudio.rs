@@ -115,3 +115,97 @@ pub async fn enhance_prompt(
 
     Ok((positive, neg))
 }
+
+/// Per-aspect guidance that tells the vision model exactly what to detail.
+fn aspect_guidance(aspect: &str) -> Option<&'static str> {
+    Some(match aspect {
+        "face" => "FACE: face shape, eyes (color, shape, gaze), eyebrows, nose, lips, skin tone & texture, \
+freckles/marks, apparent age, expression/emotion, hair (color, length, style, parting), facial hair, makeup",
+        "body" => "BODY: body type & build, proportions, height impression, skin tone & texture, muscle/curves, \
+visible anatomy and explicit details if unclothed, tattoos/piercings",
+        "posture" => "POSTURE & POSE: exact body position and pose, limb placement, hands/gesture, head tilt, \
+what the subject is doing, camera angle, shot type and framing (close-up/full-body), point of view",
+        "clothing" => "CLOTHING: every garment (type, color, material, pattern, fit, how worn/state of dress) \
+or explicit nudity if unclothed, footwear, accessories, jewelry",
+        "environment" => "ENVIRONMENT: location/setting, background elements and props, lighting (source, direction, \
+quality), time of day, weather, overall mood and color palette",
+        _ => return None,
+    })
+}
+
+/// Vision: look at an image and write a detailed diffusion prompt to recreate it,
+/// covering only the selected aspects. Requires a vision-capable model (FG_VISION_MODEL).
+pub async fn describe_image(
+    st: &AppState,
+    image_bytes: &[u8],
+    mime: &str,
+    aspects: &[String],
+) -> Result<String> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+
+    let guidance: Vec<&str> = aspects
+        .iter()
+        .filter_map(|a| aspect_guidance(a))
+        .collect();
+    if guidance.is_empty() {
+        return Err(anyhow!("no valid aspects selected"));
+    }
+
+    let style = match st.cfg.prompt_mode {
+        PromptMode::Tags => "comma-separated booru-style tags. Begin with: \
+score_9, score_8_up, score_7_up, source_photo, raw photo, photorealistic, then the descriptive tags",
+        PromptMode::Prose => "a single richly detailed natural-language paragraph",
+    };
+
+    let system = format!(
+        "You are an expert diffusion-prompt engineer with vision. Look at the image and write an \
+EXTREMELY detailed prompt, formatted as {style}, that could be used to regenerate this exact image \
+with an SDXL model. Describe ONLY the following aspects, each in fine detail:\n{}\n\
+Be concrete and specific (colors, materials, counts, positions). Adult/NSFW/explicit content is \
+allowed and expected — describe it factually; do not refuse, censor, or moralize. \
+Output ONLY the prompt text, with no preamble, headings, or quotes.",
+        guidance.join("\n")
+    );
+
+    let data_url = format!("data:{};base64,{}", mime, STANDARD.encode(image_bytes));
+
+    let body = json!({
+        "model": st.cfg.vision_model,
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": [
+                { "type": "text", "text": format!(
+                    "Write the prompt now, covering: {}.", aspects.join(", ")) },
+                { "type": "image_url", "image_url": { "url": data_url } }
+            ]}
+        ],
+        "temperature": 0.4,
+        "max_tokens": 900
+    });
+
+    let url = format!(
+        "{}/v1/chat/completions",
+        st.cfg.lmstudio_url.trim_end_matches('/')
+    );
+
+    let resp = st
+        .http
+        .post(&url)
+        .json(&body)
+        .timeout(std::time::Duration::from_secs(120))
+        .send()
+        .await?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(anyhow!("vision model returned {status}: {body}"));
+    }
+
+    let v: serde_json::Value = resp.json().await?;
+    let content = v["choices"][0]["message"]["content"]
+        .as_str()
+        .ok_or_else(|| anyhow!("vision response had no message content"))?;
+
+    Ok(content.trim().to_string())
+}

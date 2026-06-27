@@ -59,6 +59,7 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         .route("/health", get(health))
         .route("/api/prompt/enhance", post(api::prompt::enhance))
+        .route("/api/describe", post(api::describe::describe))
         .route("/api/jobs", post(api::jobs::create).get(api::jobs::list))
         .route("/api/jobs/:id", get(api::jobs::get_one))
         .route("/api/media", post(api::media::upload))

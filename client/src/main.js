@@ -1,6 +1,7 @@
 import './styles.css';
 import { api, initSettings } from './api.js';
 import { mountGenerate } from './views/generate.js';
+import { mountDescribe } from './views/describe.js';
 import { mountSwap } from './views/swap.js';
 import { mountVideo } from './views/video.js';
 import { mountGallery } from './views/gallery.js';
@@ -10,6 +11,7 @@ initSettings();
 
 const TABS = [
   { id: 'generate', label: 'Generate', ic: '✨', mount: mountGenerate },
+  { id: 'describe', label: 'Describe', ic: '🔎', mount: mountDescribe },
   { id: 'swap', label: 'Swap', ic: '💞', mount: mountSwap },
   { id: 'video', label: 'Video', ic: '🎬', mount: mountVideo },
   { id: 'gallery', label: 'Gallery', ic: '🖼️', mount: mountGallery },
@@ -64,6 +66,12 @@ async function checkConn() {
 checkConn();
 setInterval(checkConn, 5000);
 window.addEventListener('fg:backend-changed', checkConn);
+
+// Allow other views (e.g. Describe → Generate hand-off) to navigate via the hash.
+window.addEventListener('hashchange', () => {
+  const id = (location.hash || '').replace('#', '');
+  if (id && id !== current && TABS.some((t) => t.id === id)) navigate(id);
+});
 
 const initial = (location.hash || '').replace('#', '');
 navigate(TABS.some((t) => t.id === initial) ? initial : 'generate');

@@ -122,6 +122,14 @@ export function mountGenerate(view) {
     /* ignore corrupt cache */
   }
 
+  // Hand-off from the Describe screen: prefill the positive prompt if present.
+  const pending = localStorage.getItem('fg_pending_positive');
+  if (pending) {
+    $('#g-positive').value = pending;
+    localStorage.removeItem('fg_pending_positive');
+    persistLast();
+  }
+
   // Keep the sticky cache fresh as the user edits.
   FIELDS.forEach((f) => {
     const el = $('#g-' + f);

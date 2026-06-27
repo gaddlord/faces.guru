@@ -91,6 +91,14 @@ export const api = {
       return r.json();
     }),
 
+  // Describe an uploaded image (vision) → detailed prompt covering selected aspects.
+  describeImage: (media_id, aspects) =>
+    json("/api/describe", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ media_id, aspects }),
+    }),
+
   mediaUrl: (id) => base() + "/api/media/" + id,
 };
 
